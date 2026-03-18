@@ -1,9 +1,8 @@
 package com.example.integrations.twilio;
 
-import com.twilio.Twilio;
+import com.twilio.http.TwilioRestClient;
 import com.twilio.rest.api.v2010.account.Call;
 import com.twilio.rest.api.v2010.account.Message;
-import com.twilio.type.PhoneNumber;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -35,58 +34,56 @@ public class TwilioClient {
     @Value("${twilio.from.number:+15551234567}")
     private String fromNumber;
 
+    private TwilioRestClient twilioRestClient;
+
     @PostConstruct
     public void init() {
-        // DEPRECATED: Global static init.
-        // v9+ recommendation: new TwilioRestClient.Builder(accountSid, authToken).build()
-        Twilio.init(accountSid, authToken);
+        // Recommended v9+ initialization: create and use a TwilioRestClient instance
+        this.twilioRestClient = new TwilioRestClient.Builder(accountSid, authToken).build();
     }
 
     /**
-     * DEPRECATED: PhoneNumber wrapper + positional creator args.
-     * v9+ uses: Message.creator(to, from, body).create()
-     * where to/from are plain Strings.
+     * Uses recommended v9+ Message.creator builder pattern with String parameters.
      */
     public String sendSms(String toNumber, String body) {
-        Message message = Message.creator(
-                new PhoneNumber(toNumber),    // deprecated wrapper
-                new PhoneNumber(fromNumber),  // deprecated wrapper
-                body
-        ).create();
+        Message message = Message.creator(toNumber)
+                .setFrom(fromNumber)
+                .setBody(body)
+                .setClient(this.twilioRestClient)
+                .create();
 
         return message.getSid();
     }
 
     /**
-     * DEPRECATED: Call created with URI callback via positional args.
-     * v9+: Call.creator(to, from, url).create() with String params.
+     * Uses recommended v9+ Call.creator builder pattern with String parameters.
      */
     public String makeCall(String toNumber, String callbackUrl) {
-        Call call = Call.creator(
-                new PhoneNumber(toNumber),    // deprecated
-                new PhoneNumber(fromNumber),  // deprecated
-                URI.create(callbackUrl)
-        ).create();
+        Call call = Call.creator(toNumber)
+                .setFrom(fromNumber)
+                .setUrl(URI.create(callbackUrl))
+                .setClient(this.twilioRestClient)
+                .create();
 
         return call.getSid();
     }
 
     /**
-     * DEPRECATED: Single-arg fetcher — doesn't include accountSid.
-     * v9+ requires: Message.fetcher(accountSid, messageSid)
+     * Uses recommended v9+ Message.fetcher with accountSid and messageSid.
      */
     public String getMessageStatus(String messageSid) {
-        // deprecated single-arg form
-        Message message = Message.fetcher(messageSid).fetch();
-        // getStatus() used to return String; now returns Message.Status enum
+        Message message = Message.fetcher(accountSid, messageSid)
+                .setClient(this.twilioRestClient)
+                .fetch();
         return message.getStatus().toString();
     }
 
     /**
-     * DEPRECATED: Static deleter with only messageSid.
-     * v9+ requires: Message.deleter(accountSid, messageSid)
+     * Uses recommended v9+ Message.deleter with accountSid and messageSid.
      */
     public boolean deleteMessage(String messageSid) {
-        return Message.deleter(messageSid).delete();  // deprecated single-arg form
+        return Message.deleter(accountSid, messageSid)
+                .setClient(this.twilioRestClient)
+                .delete();
     }
 }
